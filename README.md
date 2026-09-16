@@ -1,134 +1,131 @@
 # Mutual Fund SIP & NAV Allocation Engine
 
-A Spring Boot backend system that manages mutual funds, daily NAV records,
-investor SIP mandates, automated SIP execution, NAV-based unit allocation,
-and database-enforced idempotency.
+A Spring Boot backend system that manages mutual funds, daily NAV records, investor SIP mandates, automated SIP execution, NAV-based unit allocation, and database-enforced idempotency.
 
-## Core Business Formula
-
-For every SIP execution:
-
-```text
-Units Allocated = SIP Amount / NAV
-```
-
-The calculation is performed using Java `BigDecimal` with a scale of 4
-and `RoundingMode.HALF_UP`.
-
-Example:
-
-```text
-SIP Amount = ₹5,000
-NAV        = ₹247.35
-
-Units = 5000 / 247.35
-      = 20.214271...
-      = 20.2143 units
-```
+---
 
 ## 🚀 Key Features
 
-### 1. Mutual Fund Management
+- Mutual fund management
+- Daily NAV management
+- Investor SIP management
+- Automated scheduled SIP execution
+- NAV-based unit allocation
+- Financial calculations using `BigDecimal`
+- Database-enforced idempotency
+- PostgreSQL persistence
+- Global exception handling
+- REST APIs
+- Functional testing
+- Apache JMeter performance testing
+- Dataset-scale scalability analysis
 
-The system supports creation and retrieval of mutual fund information.
+---
 
-Each fund contains:
+## 🏦 Business Workflow
 
-- Fund ID
-- Symbol
-- Name
-- Category
-- Active status
+The system models a simplified mutual-fund SIP workflow:
 
-## 2. Daily NAV Management
-
-The system stores daily NAV values for each mutual fund.
-
-Each NAV record contains:
-
-- Fund
-- NAV date
-- NAV price
-
-A database unique constraint is applied to:
-
-```text
-(fund_id, nav_date)
-```
-
-This ensures that the same fund cannot have multiple NAV records
-for the same date.
-
-## 3. Investor SIP Management
-
-Investors can create SIP mandates containing:
-
-- User ID
-- Fund
-- Monthly SIP amount
-- Deduction day
-- Active status
-- Creation timestamp
-
-## 4. Automated SIP Execution
-
-The scheduled job:
-
-1. Identifies the current date
-2. Finds active SIPs whose deduction day matches the current day
-3. Checks whether the SIP has already been processed today
-4. Looks up the NAV for the same fund and date
-5. Calculates units
-6. Rounds the result to 4 decimal places
-7. Creates a `SIPAllocationRecord`
-8. Saves the allocation in PostgreSQL
-
-## 5. Idempotent SIP Processing
-
-The system prevents duplicate SIP execution using:
-
-- Application-level idempotency check
-- Database-level unique constraint
-
-```text
-(sip_id, allocation_date)
-```
-
-## 🏗️ Architecture
-
-```text
-Controller
-    ↓
-Service
-    ↓
-Repository
-    ↓
+Fund
+↓
+Daily NAV
+↓
+Investor SIP
+↓
+Scheduled SIP Execution
+↓
+Find Due SIPs
+↓
+Find Today's NAV
+↓
+Calculate Units
+↓
+Idempotency Check
+↓
+Create SIP Allocation Record
+↓
 PostgreSQL
-```
+
+---
+
+## 💰 Core Business Formula
+
+For every SIP execution:
+
+`Units Allocated = SIP Amount / NAV`
+
+The calculation uses Java `BigDecimal` with:
+
+- Scale = 4
+- Rounding Mode = `HALF_UP`
+
+### Example
+
+SIP Amount = ₹5,000  
+NAV = ₹247.35
+
+Units = 5000 / 247.35  
+Units = 20.214271...  
+Final Units = 20.2143
+
+---
+
+# 🏗️ Architecture
+
+The application follows a layered Spring Boot architecture:
+
+Controller  
+↓  
+Service  
+↓  
+Repository  
+↓  
+PostgreSQL
 
 Scheduled SIP processing:
 
-```text
-Spring Scheduler
-      ↓
-Find Due SIPs
-      ↓
-Find Today's NAV
-      ↓
-Calculate Units
-      ↓
-Check Idempotency
-      ↓
-Create SIPAllocationRecord
-      ↓
+Spring Scheduler  
+↓  
+Find Due SIPs  
+↓  
+Find Today's NAV  
+↓  
+Calculate Units  
+↓  
+Check Idempotency  
+↓  
+Create SIPAllocationRecord  
+↓  
 PostgreSQL
-```
 
-## 📂 Package Structure
+---
 
-```text
-sip_allocation_engine
+# 📂 Project Structure
+
+The repository is organized as:
+
+sip-allocation-engine/
 │
+├── reports/
+│   ├── JMeter performance reports
+│   └── Performance test evidence
+│
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   └── resources/
+│   │
+│   └── test/
+│
+├── README.md
+├── pom.xml
+├── .gitignore
+├── mvnw
+└── mvnw.cmd
+
+Java package structure:
+
+sip_allocation_engine
 ├── controller
 ├── service
 ├── scheduler
@@ -137,378 +134,403 @@ sip_allocation_engine
 ├── dto
 ├── exception
 └── config
-```
 
-## 🗃️ Domain Model
+---
 
-```text
+# 🗃️ Domain Model
+
 Fund
- │
- ├── FundNAV
- │
- └── InvestorSIP
-        │
-        └── SIPAllocationRecord
-```
+│
+├── FundNAV
+│
+└── InvestorSIP
+│
+└── SIPAllocationRecord
 
-## 🔄 SIP Execution Flow
+### Fund
 
-```text
-FUND
-  ↓
-NAV
-  ↓
-INVESTOR SIP
-  ↓
-@Scheduled Job
-  ↓
-Find Due SIPs
-  ↓
-Find NAV
-  ↓
-Amount / NAV = Units
-  ↓
-BigDecimal(4)
-  ↓
-Idempotency Check
-  /       \
-Already    New
-Processed
-  ↓         ↓
-Skip      Allocate
-             ↓
-      Save Allocation Record
-```
+Represents a mutual fund available in the system.
 
-## 💰 Financial Calculation
+Contains:
 
-Financial calculations are performed using `BigDecimal`.
+- Fund ID
+- Symbol
+- Name
+- Category
+- Active status
 
-```java
-BigDecimal unitsAllocated =
-    sip.getMonthlyAmount()
-       .divide(
-           fundNAV.getNavPrice(),
-           4,
-           RoundingMode.HALF_UP
-       );
-```
+### FundNAV
 
-### Why BigDecimal?
+Stores the daily NAV of a fund.
 
-Financial calculations require deterministic decimal arithmetic.
+Contains:
 
-The project therefore uses:
+- Fund
+- NAV date
+- NAV price
 
-```text
-BigDecimal
-Scale = 4
-RoundingMode = HALF_UP
-```
+### InvestorSIP
 
-## 🌐 REST API
+Represents an investor's recurring SIP mandate.
 
-The application exposes 7 HTTP endpoints.
+Contains:
 
-### GET Endpoints
+- User ID
+- Fund
+- Monthly SIP amount
+- Deduction day
+- Active status
+- Creation timestamp
 
-#### 1. Get All Funds
+### SIPAllocationRecord
 
-```http
-GET /api/v1/funds
-```
+Stores the result of a successful SIP allocation.
 
-#### 2. Get Fund by Symbol
+Contains:
 
-```http
-GET /api/v1/funds/{symbol}
-```
+- SIP
+- Allocation date
+- SIP amount
+- NAV used
+- Units allocated
 
-Example:
+---
 
-```http
-GET /api/v1/funds/HDFC-FLEXI
-```
-
-#### 3. Get All SIPs
-
-```http
-GET /api/v1/sips/user
-```
-
-Returns all SIP records regardless of user.
-
-#### 4. Get SIPs by User
-
-```http
-GET /api/v1/sips/user/{userId}
-```
-
-Example:
-
-```http
-GET /api/v1/sips/user/101
-```
-
-### POST Endpoints
-
-#### 5. Create Fund
-
-```http
-POST /api/v1/funds
-```
-
-Example:
-
-```json
-{
-  "symbol": "HDFC-FLEXI",
-  "name": "HDFC Flexi Cap Fund",
-  "category": "EQUITY",
-  "active": true
-}
-```
-
-#### 6. Create NAV
-
-```http
-POST /api/v1/nav
-```
-
-Example:
-
-```json
-{
-  "fundSymbol": "HDFC-FLEXI",
-  "navDate": "2026-09-15",
-  "navPrice": 247.35
-}
-```
-
-#### 7. Create SIP
-
-```http
-POST /api/v1/sips
-```
-
-Example:
-
-```json
-{
-  "userId": 101,
-  "fundSymbol": "HDFC-FLEXI",
-  "monthlyAmount": 5000,
-  "deductionDay": 15
-}
-```
-
-## ⏰ Automated SIP Processing
-
-The application uses Spring Scheduling.
-
-During testing:
-
-```java
-@Scheduled(cron = "0 * * * * *")
-```
-
-For intended daily execution:
-
-```java
-@Scheduled(cron = "0 0 9 * * *")
-```
-
-The process:
-
-```text
-Find active SIP
-      ↓
-Check deduction day
-      ↓
-Check existing allocation
-      ↓
-Find today's NAV
-      ↓
-Calculate units
-      ↓
-Create allocation record
-      ↓
-Persist allocation
-```
-
-If today's NAV is unavailable, the SIP execution is skipped.
-
-## 🛡️ Idempotency
-
-A SIP should not be allocated twice for the same date.
-
-The system checks:
-
-```text
-SIP + Allocation Date
-```
-
-Before creating an allocation.
-
-The database also enforces:
-
-```text
-UNIQUE(sip_id, allocation_date)
-```
-
-Example:
-
-```text
-First execution:
-SIP 101 + 2026-09-15
-→ Allocation created
-
-Second execution:
-SIP 101 + 2026-09-15
-→ Already processed
-→ Skip
-```
-
-## 🗄️ Database
+# 📊 Database Design
 
 The application uses PostgreSQL.
 
 Database:
 
-```text
-sip_allocation
-```
+`sip_allocation`
 
-Example configuration:
+The application uses JPA/Hibernate for persistence.
 
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/sip_allocation
-spring.datasource.username=postgres
-spring.datasource.password=YOUR_PASSWORD
-
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
-spring.jpa.properties.hibernate.format_sql=true
-```
-
-## 🧩 Database Constraints
+## Important Constraints
 
 ### Fund
 
-```text
-symbol
-UNIQUE
-NOT NULL
-```
+The fund symbol is:
+
+- UNIQUE
+- NOT NULL
+
+This prevents duplicate fund symbols.
 
 ### Fund NAV
 
-```text
-fund_id + nav_date
-```
+The database enforces:
 
-is unique.
+`UNIQUE(fund_id, nav_date)`
+
+This ensures that a fund cannot have multiple NAV records for the same date.
 
 ### SIP Allocation
 
-```text
-sip_id + allocation_date
-```
+The database enforces:
 
-is unique.
+`UNIQUE(sip_id, allocation_date)`
 
-## ⚠️ Exception Handling
+This ensures that the same SIP cannot be allocated more than once for the same allocation date.
 
-The application uses custom runtime exceptions and centralized
-exception handling.
+---
 
-Examples:
+# 💵 Financial Calculation
 
-```java
-FundNotFoundException
-NAVAlreadyExistsException
-```
+Financial calculations use Java `BigDecimal`.
 
-Global exception handling:
+The allocation calculation is:
 
-```java
-@RestControllerAdvice
-```
+`monthlyAmount.divide(navPrice, 4, RoundingMode.HALF_UP)`
+
+### Why BigDecimal?
+
+Financial calculations require deterministic decimal arithmetic.
+
+Using floating-point types such as `double` or `float` can introduce precision issues.
+
+Therefore the project uses:
+
+- `BigDecimal`
+- Scale = 4
+- `RoundingMode.HALF_UP`
+
+---
+
+# 🔄 SIP Execution Flow
+
+The scheduled SIP process performs the following steps:
+
+1. Get current date
+2. Determine deduction day
+3. Find active SIPs due today
+4. Check whether allocation already exists
+5. Find today's NAV
+6. Calculate units
+7. Round to 4 decimal places
+8. Create `SIPAllocationRecord`
+9. Persist allocation
+
+If today's NAV is unavailable:
+
+NAV unavailable  
+↓  
+Skip SIP execution
+
+---
+
+# 🛡️ Idempotent SIP Processing
+
+SIP execution must not create duplicate allocations for the same SIP and allocation date.
+
+The implementation uses two layers of protection.
+
+## Application-Level Check
+
+Before creating an allocation, the repository checks:
+
+`findBySipAndAllocationDate(sip, today)`
+
+If a record already exists:
+
+Already processed  
+↓  
+Skip
+
+## Database-Level Protection
+
+The database also enforces:
+
+`UNIQUE(sip_id, allocation_date)`
+
+Therefore:
+
+First execution  
+↓  
+SIP + Date  
+↓  
+Allocation created
+
+Second execution  
+↓  
+Same SIP + Same Date  
+↓  
+Already processed  
+↓  
+Skip execution
+
+The database constraint provides an additional integrity guarantee beyond the application-level check.
+
+---
+
+# 🌐 REST API
+
+The application exposes 7 HTTP endpoints.
+
+## GET Endpoints
+
+### 1. Get All Funds
+
+`GET /api/v1/funds`
+
+Returns all funds.
+
+---
+
+### 2. Get Fund by Symbol
+
+`GET /api/v1/funds/{symbol}`
+
+Example:
+
+`GET /api/v1/funds/HDFC-FLEXI`
+
+Returns fund details along with the latest stored NAV.
+
+---
+
+### 3. Get All SIPs
+
+`GET /api/v1/sips/user`
+
+Returns all SIP records regardless of user.
+
+> Note: This is intentionally an unpaginated collection endpoint in the current project scope.
+
+---
+
+### 4. Get SIPs by User
+
+`GET /api/v1/sips/user/{userId}`
+
+Example:
+
+`GET /api/v1/sips/user/101`
+
+Returns SIPs belonging to the specified user.
+
+---
+
+# POST Endpoints
+
+## 5. Create Fund
+
+`POST /api/v1/funds`
+
+Example request:
+
+{
+"symbol": "HDFC-FLEXI",
+"name": "HDFC Flexi Cap Fund",
+"category": "EQUITY",
+"active": true
+}
+
+---
+
+## 6. Create NAV
+
+`POST /api/v1/nav`
+
+Example request:
+
+{
+"fundSymbol": "HDFC-FLEXI",
+"navDate": "2026-09-15",
+"navPrice": 247.35
+}
+
+---
+
+## 7. Create SIP
+
+`POST /api/v1/sips`
+
+Example request:
+
+{
+"userId": 101,
+"fundSymbol": "HDFC-FLEXI",
+"monthlyAmount": 5000,
+"deductionDay": 15
+}
+
+---
+
+# ⏰ Automated SIP Processing
+
+The application uses Spring Scheduling.
+
+The intended daily schedule is:
+
+`@Scheduled(cron = "0 0 9 * * *")`
+
+This executes the SIP processing job every day at 9:00 AM according to the application's runtime timezone.
+
+The scheduler:
+
+Find active SIP  
+↓  
+Check deduction day  
+↓  
+Check existing allocation  
+↓  
+Find today's NAV  
+↓  
+Calculate units  
+↓  
+Create allocation record  
+↓  
+Persist allocation
+
+---
+
+# ⚠️ Exception Handling
+
+The application uses custom runtime exceptions and centralized exception handling through:
+
+`@RestControllerAdvice`
+
+Current custom exceptions include:
+
+- `FundNotFoundException`
+- `NAVAlreadyExistsException`
 
 HTTP mappings:
 
-```text
-Fund not found
-→ 404 NOT FOUND
+Fund not found → 404 NOT FOUND
 
-Duplicate NAV
-→ 409 CONFLICT
-```
+Duplicate NAV → 409 CONFLICT
 
-## 🧪 Functional Testing
+---
 
-Tested scenarios include:
+# 🧪 Functional Testing
 
-### Fund Testing
+The application was tested using functional API and database scenarios.
+
+## Fund Testing
 
 - Create fund
 - Retrieve all funds
 - Retrieve fund by symbol
 - Invalid fund lookup
 
-### NAV Testing
+## NAV Testing
 
 - Create valid NAV
 - Duplicate NAV for same fund/date
 - Invalid fund while creating NAV
 - NAV retrieval through fund APIs
 
-### SIP Testing
+## SIP Testing
 
 - Create SIP
 - Retrieve all SIPs
 - Retrieve SIPs by user
 
-### Scheduler Testing
+## Scheduler Testing
 
 - Due SIP execution
 - NAV-based unit allocation
 - Missing NAV scenario
 - Idempotent re-execution
+- SIP allocation record creation
 
 Example:
 
-```text
-SIP Amount = ₹5,000
-NAV        = ₹247.35
-Units      = 20.2143
-```
+SIP Amount = ₹5,000  
+NAV = ₹247.35  
+Units = 20.2143
 
-## 📊 Performance Testing
+---
 
-Apache JMeter was used for load testing.
+# 📊 Performance Testing
 
-Two primary load patterns were used.
+Apache JMeter was used to load-test the REST APIs.
 
-### Test 1 — High Concurrency
+Two primary test configurations were used.
 
-```text
-Threads        = 1000
-Loops          = 100
-Total Requests = 100,000
-Ramp-up        = 10 seconds
-```
+## Test 1 — High Concurrency
 
-### Test 2 — High Iteration
+- Threads = 1000
+- Loops = 100
+- Total Requests = 100,000
+- Ramp-up = 10 seconds
 
-```text
-Threads        = 100
-Loops          = 1000
-Total Requests = 100,000
-Ramp-up        = 10 seconds
-```
+## Test 2 — High Iteration
 
-Metrics recorded:
+- Threads = 100
+- Loops = 1000
+- Total Requests = 100,000
+- Ramp-up = 10 seconds
+
+The tests were performed locally against the Spring Boot application and PostgreSQL database.
+
+---
+
+# 📈 Performance Metrics
+
+The following metrics were recorded:
 
 - Average Response Time
 - Median
@@ -524,271 +546,284 @@ Metrics recorded:
 - Sent Data Rate
 - Average Response Size
 
-## 📈 Example Performance Results
+Detailed JMeter reports are available in:
 
-### GET `/api/v1/funds`
+`/reports`
+
+---
+
+# 📌 Selected Benchmark Results
+
+## GET `/api/v1/funds`
 
 One successful 100,000-request run:
 
-```text
-Samples      : 100,000
-Average      : 39 ms
-Median       : 19 ms
-P90          : 77 ms
-P95          : 143 ms
-P99          : 470 ms
-Min          : 0 ms
-Max          : 3074 ms
-Error        : 0.00%
-Throughput   : 4987.8 req/sec
-```
+- Samples: 100,000
+- Average: 39 ms
+- Median: 19 ms
+- P90: 77 ms
+- P95: 143 ms
+- P99: 470 ms
+- Minimum: 0 ms
+- Maximum: 3074 ms
+- Error: 0.00%
+- Throughput: 4987.8 req/sec
 
-These are local benchmark observations and should not be interpreted
-as universal production capacity.
+These are local benchmark observations and should not be interpreted as guaranteed production capacity.
 
-### GET `/api/v1/funds/{symbol}`
+---
 
-Test 1:
+# GET `/api/v1/funds/{symbol}`
 
-```text
-Samples      : 100,000
-Average      : 230 ms
-Median       : 205 ms
-P90          : 419 ms
-P95          : 571 ms
-P99          : 996 ms
-Min          : 0 ms
-Max          : 3022 ms
-Std Dev      : 192.19 ms
-Error        : 0.00%
-Throughput   : 2673.2 req/sec
-```
+## Test 1
 
-Test 2:
+- Samples: 100,000
+- Average: 230 ms
+- Median: 205 ms
+- P90: 419 ms
+- P95: 571 ms
+- P99: 996 ms
+- Minimum: 0 ms
+- Maximum: 3022 ms
+- Std Dev: 192.19 ms
+- Error: 0.00%
+- Throughput: 2673.2 req/sec
 
-```text
-Samples      : 100,000
-Average      : 16 ms
-Median       : 6 ms
-P90          : 44 ms
-P95          : 70 ms
-P99          : 133 ms
-Min          : 0 ms
-Max          : 416 ms
-Std Dev      : 26.86 ms
-Error        : 0.00%
-Throughput   : 3844.4 req/sec
-```
+## Test 2
 
-### GET `/api/v1/sips/user`
+- Samples: 100,000
+- Average: 16 ms
+- Median: 6 ms
+- P90: 44 ms
+- P95: 70 ms
+- P99: 133 ms
+- Minimum: 0 ms
+- Maximum: 416 ms
+- Std Dev: 26.86 ms
+- Error: 0.00%
+- Throughput: 3844.4 req/sec
 
-Test 1:
+---
 
-```text
-Samples      : 100,000
-Average      : 197 ms
-Median       : 141 ms
-P90          : 372 ms
-P95          : 499 ms
-P99          : 996 ms
-Min          : 0 ms
-Max          : 5264 ms
-Std Dev      : 197.32 ms
-Error        : 0.00%
-Throughput   : 3903.2 req/sec
-```
+# GET `/api/v1/sips/user`
 
-Test 2:
+## Test 1
 
-```text
-Samples      : 100,000
-Average      : 5 ms
-Median       : 4 ms
-P90          : 11 ms
-P95          : 15 ms
-P99          : 33 ms
-Min          : 0 ms
-Max          : 201 ms
-Std Dev      : 7.05 ms
-Error        : 0.00%
-Throughput   : 6808.3 req/sec
-```
+- Samples: 100,000
+- Average: 197 ms
+- Median: 141 ms
+- P90: 372 ms
+- P95: 499 ms
+- P99: 996 ms
+- Minimum: 0 ms
+- Maximum: 5264 ms
+- Std Dev: 197.32 ms
+- Error: 0.00%
+- Throughput: 3903.2 req/sec
 
-### GET `/api/v1/sips/user/{userId}`
+## Test 2
 
-Test 1:
+- Samples: 100,000
+- Average: 5 ms
+- Median: 4 ms
+- P90: 11 ms
+- P95: 15 ms
+- P99: 33 ms
+- Minimum: 0 ms
+- Maximum: 201 ms
+- Std Dev: 7.05 ms
+- Error: 0.00%
+- Throughput: 6808.3 req/sec
 
-```text
-Samples      : 100,000
-Average      : 1 ms
-Median       : 1 ms
-P90          : 2 ms
-P95          : 3 ms
-P99          : 6 ms
-Min          : 0 ms
-Max          : 59 ms
-Std Dev      : 1.26 ms
-Error        : 0.00%
-Throughput   : 9951.2 req/sec
-```
+---
 
-Test 2:
+# GET `/api/v1/sips/user/{userId}`
 
-```text
-Samples      : 100,000
-Average      : 4 ms
-Median       : 3 ms
-P90          : 9 ms
-P95          : 14 ms
-P99          : 35 ms
-Min          : 0 ms
-Max          : 153 ms
-Std Dev      : 6.98 ms
-Error        : 0.00%
-Throughput   : 8724.5 req/sec
-```
+## Test 1
 
-## ⚠️ Scalability Observation — GET All SIPs
+- Samples: 100,000
+- Average: 1 ms
+- Median: 1 ms
+- P90: 2 ms
+- P95: 3 ms
+- P99: 6 ms
+- Minimum: 0 ms
+- Maximum: 59 ms
+- Std Dev: 1.26 ms
+- Error: 0.00%
+- Throughput: 9951.2 req/sec
+
+## Test 2
+
+- Samples: 100,000
+- Average: 4 ms
+- Median: 3 ms
+- P90: 9 ms
+- P95: 14 ms
+- P99: 35 ms
+- Minimum: 0 ms
+- Maximum: 153 ms
+- Std Dev: 6.98 ms
+- Error: 0.00%
+- Throughput: 8724.5 req/sec
+
+---
+
+# ⚠️ Scalability Observation — GET All SIPs
 
 The endpoint:
 
-```http
-GET /api/v1/sips/user
-```
+`GET /api/v1/sips/user`
 
-returns all SIP records.
+returns all SIP records regardless of user.
+
+This design behaves differently as the underlying dataset grows.
 
 When the database contained approximately:
 
-```text
-200,004 SIP records
-```
+`200,004 SIP records`
 
-the response became very large because every request attempted to return
-the complete dataset.
+the endpoint had to retrieve and serialize the complete dataset for each request.
 
-A smaller 50-request test produced:
+A smaller 50-request test against this dataset produced:
 
-```text
-Requests     : 50
-Average      : 3118 ms
-Min          : 2104 ms
-Max          : 6164 ms
-Error        : 0%
-Throughput   : 1.3 req/sec
-Avg Response : ~30.7 MB/request
-```
+- Requests: 50
+- Average: 3118 ms
+- Minimum: 2104 ms
+- Maximum: 6164 ms
+- Error: 0%
+- Throughput: 1.3 req/sec
+- Average response size: approximately 30.7 MB/request
 
-This demonstrates the scalability limitation of an unpaginated
-collection endpoint when the dataset grows.
+This demonstrates a scalability limitation of an unpaginated collection endpoint when the dataset becomes large.
 
-The issue can be represented as:
+The processing path can be represented as:
 
-```text
-200,004 DB records
-        ↓
-Load entire dataset
-        ↓
-Convert entire dataset to response objects
-        ↓
-Serialize large JSON response
-        ↓
-Transfer large response for every request
-```
+200,004 DB Records  
+↓  
+Retrieve complete dataset  
+↓  
+Map records to response objects  
+↓  
+Serialize large JSON response  
+↓  
+Transfer large response  
+↓  
+Repeat for every request
 
-## 📌 Scalability Considerations
+The observation highlights why bounded result sets and pagination are important for production-scale collection APIs.
 
-For production-scale implementation:
+---
 
-### Pagination
+# 🧠 Engineering Observation
 
-Use:
+The performance tests demonstrated that API performance depends not only on request concurrency but also on:
 
-```text
-page
-size
-```
+- Dataset Size
+- Query Pattern
+- Object Mapping
+- JSON Serialization
+- Response Size
 
-Example:
+An endpoint may perform well with a small dataset while degrading significantly when the same endpoint returns a much larger dataset.
 
-```text
-GET /api/v1/sips?page=0&size=50
-```
+This was observed with the unpaginated SIP collection endpoint.
 
-### Filtering
+---
 
-Support bounded queries using:
+# 📈 Scalability Considerations
 
-```text
-userId
-fund
-active status
-date range
-```
+For a production-scale implementation, the following improvements would be appropriate.
 
-### Database Indexes
+## 1. Pagination
 
-Frequently queried columns can be indexed:
+Instead of returning the entire collection, use bounded responses such as:
 
-```text
-user_id
-fund_id
-deduction_day
-active
-```
+`GET /api/v1/sips?page=0&size=50`
 
-### DTO Projections
+or user-specific pagination.
 
-Retrieve only the fields required by the API where appropriate.
+---
 
-### Connection Pool Tuning
+## 2. Filtering
 
-Tune the database connection pool according to:
+Support bounded queries using filters such as:
+
+- userId
+- fund
+- active status
+- date range
+
+---
+
+## 3. Database Indexes
+
+Frequently queried columns can be indexed, for example:
+
+- user_id
+- fund_id
+- deduction_day
+- active
+
+---
+
+## 4. DTO Projections
+
+Where appropriate, retrieve only the fields required by the API instead of loading unnecessary entity data.
+
+---
+
+## 5. Connection Pool Tuning
+
+Database connection pool configuration should be tuned according to:
 
 - Database capacity
 - Request concurrency
-- Application instances
 - Query execution time
+- Application instances
 
-### Horizontal Scaling
+---
+
+## 6. Horizontal Scaling
 
 Multiple application instances can be deployed behind a load balancer.
 
-Scheduled processing would require additional coordination to prevent
-multiple instances from executing the same SIP simultaneously.
+Scheduled SIP processing would require coordination in a multi-instance deployment so that the same SIP is not processed concurrently by multiple instances.
 
-## 🔍 Important Performance Testing Note
+---
 
-The JMeter numbers are local benchmark measurements.
+# 🔍 Performance Testing Notes
 
-They depend on:
+The JMeter results are local benchmark measurements.
+
+Results depend on:
 
 - Local machine hardware
 - JVM state
 - PostgreSQL state
 - Database size
-- Connection pool
+- Connection pool configuration
 - Background processes
 - JMeter configuration
-- Network conditions
 - Application state
 
-Therefore, these numbers should not be presented as guaranteed
-production capacity.
+Therefore, the benchmark results should not be interpreted as guaranteed production capacity.
 
-The purpose of performance testing was to identify:
+The purpose of the performance testing was to analyze:
 
-```text
-Latency
-Throughput
-Error behavior
-Dataset-size impact
-Potential scalability bottlenecks
-```
+- Latency
+- Throughput
+- Error Behavior
+- Response Size
+- Concurrency Behavior
+- Dataset-Size Impact
+- Scalability Limitations
 
-## 🧠 Design Decisions
+---
 
-### Why Spring Boot?
+# 🧠 Design Decisions
+
+## Why Spring Boot?
 
 Spring Boot provides:
 
@@ -799,21 +834,22 @@ Spring Boot provides:
 - Exception handling
 - JPA/Hibernate integration
 
-### Why Spring Data JPA?
+---
 
-Spring Data JPA reduces boilerplate database access code while allowing
-repository methods to express business queries.
+## Why Spring Data JPA?
+
+Spring Data JPA reduces database-access boilerplate while allowing repository methods to express business queries.
 
 Examples:
 
-```java
-findBySymbol(...)
-findByFundAndNavDate(...)
-findByActiveTrueAndDeductionDay(...)
-findBySipAndAllocationDate(...)
-```
+- `findBySymbol(...)`
+- `findByFundAndNavDate(...)`
+- `findByActiveTrueAndDeductionDay(...)`
+- `findBySipAndAllocationDate(...)`
 
-### Why PostgreSQL?
+---
+
+## Why PostgreSQL?
 
 PostgreSQL provides:
 
@@ -824,200 +860,223 @@ PostgreSQL provides:
 - Referential integrity
 - Production-grade relational database capabilities
 
-### Why BigDecimal?
+---
+
+## Why BigDecimal?
 
 Financial calculations require deterministic decimal arithmetic.
 
-Therefore:
+Therefore the project uses:
 
-```java
-BigDecimal
-```
+`BigDecimal`
 
-is used instead of:
+instead of:
 
-```java
-double
-float
-```
+`double`  
+`float`
 
-### Why Database-Level Idempotency?
+---
 
-Application logic alone should not be the only protection against
-duplicate execution.
+## Why Database-Level Idempotency?
+
+Application-level checks are useful, but the database should also enforce important business invariants.
 
 The unique constraint:
 
-```text
-(sip_id, allocation_date)
-```
+`(sip_id, allocation_date)`
 
-ensures that the database itself enforces the uniqueness rule.
+ensures that duplicate allocation records cannot be stored for the same SIP and date.
 
-## 🛠️ Technology Stack
+---
+
+# 🛠️ Technology Stack
 
 | Technology | Purpose |
 |---|---|
 | Java 21 | Backend programming language |
 | Spring Boot 4.1.1 | Application framework |
-| Spring Web | REST APIs |
+| Spring Web | REST API development |
 | Spring Data JPA | Data access |
 | Hibernate | ORM |
 | PostgreSQL 17.10 | Relational database |
 | Maven | Build and dependency management |
-| Apache JMeter | Load & performance testing |
-| Git/GitHub | Version control |
+| Apache JMeter | Load and performance testing |
+| Git | Version control |
+| GitHub | Source code hosting |
 
-## ▶️ Running the Project
+---
 
-### 1. Clone Repository
+# ▶️ Running the Project
 
-```bash
-git clone <repository-url>
-cd sip-allocation-engine
-```
+## 1. Clone the Repository
 
-### 2. Configure PostgreSQL
+`git clone https://github.com/AnuragNikumbh13/sip-allocation-engine.git`
 
-```sql
-CREATE DATABASE sip_allocation;
-```
+`cd sip-allocation-engine`
 
-### 3. Configure Application Properties
+## 2. Create PostgreSQL Database
 
-```properties
-spring.application.name=sip-allocation-engine
+`CREATE DATABASE sip_allocation;`
 
-spring.datasource.url=jdbc:postgresql://localhost:5432/sip_allocation
-spring.datasource.username=postgres
-spring.datasource.password=YOUR_PASSWORD
+## 3. Configure Local Database Credentials
 
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
-spring.jpa.properties.hibernate.format_sql=true
-```
+The project keeps local configuration outside version control.
 
-### 4. Build
+Example configuration:
 
-```bash
-mvn clean install
-```
+`spring.application.name=sip-allocation-engine`
 
-### 5. Run
+`spring.datasource.url=jdbc:postgresql://localhost:5432/sip_allocation`
 
-```bash
-mvn spring-boot:run
-```
+`spring.datasource.username=postgres`
+
+`spring.datasource.password=${DB_PASSWORD}`
+
+`spring.jpa.hibernate.ddl-auto=update`
+
+`spring.jpa.show-sql=true`
+
+`spring.jpa.properties.hibernate.format_sql=true`
+
+Set the database password through the local environment.
+
+The local `application.properties` file is intentionally excluded from Git using `.gitignore`.
+
+---
+
+## 4. Build
+
+`mvn clean install`
+
+## 5. Run
+
+`mvn spring-boot:run`
 
 Application:
 
-```text
-http://localhost:8080
-```
+`http://localhost:8080`
 
-## 🔬 Example End-to-End Flow
+---
 
-### Step 1 — Create Fund
+# 🔬 Example End-to-End Flow
 
-```http
-POST /api/v1/funds
-```
+## Step 1 — Create Fund
 
-```json
+`POST /api/v1/funds`
+
+Example:
+
 {
-  "symbol": "HDFC-FLEXI",
-  "name": "HDFC Flexi Cap Fund",
-  "category": "EQUITY",
-  "active": true
+"symbol": "HDFC-FLEXI",
+"name": "HDFC Flexi Cap Fund",
+"category": "EQUITY",
+"active": true
 }
-```
 
-### Step 2 — Create NAV
+---
 
-```http
-POST /api/v1/nav
-```
+## Step 2 — Create NAV
 
-```json
+`POST /api/v1/nav`
+
+Example:
+
 {
-  "fundSymbol": "HDFC-FLEXI",
-  "navDate": "2026-09-15",
-  "navPrice": 247.35
+"fundSymbol": "HDFC-FLEXI",
+"navDate": "2026-09-15",
+"navPrice": 247.35
 }
-```
 
-### Step 3 — Create SIP
+---
 
-```http
-POST /api/v1/sips
-```
+## Step 3 — Create SIP
 
-```json
+`POST /api/v1/sips`
+
+Example:
+
 {
-  "userId": 101,
-  "fundSymbol": "HDFC-FLEXI",
-  "monthlyAmount": 5000,
-  "deductionDay": 15
+"userId": 101,
+"fundSymbol": "HDFC-FLEXI",
+"monthlyAmount": 5000,
+"deductionDay": 15
 }
-```
 
-### Step 4 — Scheduler Finds Due SIP
+---
 
-```text
-User       = 101
-Fund       = HDFC-FLEXI
-Amount     = ₹5,000
-Deduction  = 15
-```
+## Step 4 — Scheduler Finds Due SIP
 
-### Step 5 — NAV Lookup
+User = 101  
+Fund = HDFC-FLEXI  
+Amount = ₹5,000  
+Deduction Day = 15
 
-```text
+---
+
+## Step 5 — NAV Lookup
+
 NAV = ₹247.35
-```
 
-### Step 6 — Unit Calculation
+---
 
-```text
-5000 / 247.35
+## Step 6 — Unit Calculation
+
+5000 / 247.35  
 = 20.214271...
-```
 
-Rounded:
+Rounded to:
 
-```text
 20.2143
-```
 
-### Step 7 — Allocation Record
+---
+
+## Step 7 — Allocation Record
 
 The system creates:
 
-```text
-SIPAllocationRecord
-```
+`SIPAllocationRecord`
 
 containing:
 
-```text
-SIP
-Allocation Date
-Amount
-NAV
-Units Allocated
-```
+- SIP
+- Allocation Date
+- Amount
+- NAV
+- Units Allocated
 
-### Step 8 — Idempotency
+---
 
-```text
-Allocation already exists
-        ↓
+## Step 8 — Idempotency
+
+If the scheduler attempts the same SIP again for the same date:
+
+Allocation already exists  
+↓  
 Skip execution
-```
 
 No duplicate allocation is created.
 
-## 🚧 Current Scope
+---
+
+# 📋 Performance Reports
+
+Detailed JMeter reports and test evidence are maintained in:
+
+`/reports`
+
+The reports contain:
+
+- HTTP Request Configuration
+- Summary Report
+- Aggregate Report
+- Performance Results
+- Test Comparison
+- Analysis
+- Final Status
+
+---
+
+# 🚧 Current Scope
 
 Included:
 
@@ -1028,13 +1087,18 @@ Included:
 - Scheduled SIP execution
 - NAV-based unit allocation
 - BigDecimal financial calculations
-- Idempotency
+- Database-level idempotency
 - PostgreSQL persistence
 - Global exception handling
 - Functional testing
 - JMeter performance testing
+- Dataset-scale scalability analysis
 
-## ❌ Out of Scope
+---
+
+# ❌ Out of Scope
+
+The following are intentionally outside the current project scope:
 
 - Investor holdings
 - Detailed execution audit logs
@@ -1051,149 +1115,91 @@ Included:
 - Live/intraday NAV
 - External mutual fund catalog API
 
-## 🔮 Future Improvements
+---
 
-Potential enhancements:
+# 🔮 Future Improvements
 
-1. Pagination
+Potential enhancements include:
+
+1. Pagination and bounded collection APIs
 2. Authentication and authorization
 3. External NAV integration
 4. Payment integration
 5. Distributed scheduler coordination
 6. Event-driven processing
-7. More sophisticated transaction management
+7. Improved transaction management
 8. Monitoring and observability
-9. Better API filtering and pagination
+9. API filtering and pagination
+10. Production-grade deployment configuration
 
 Possible observability stack:
 
-```text
-Micrometer
-Prometheus
+Spring Boot Actuator  
+↓  
+Micrometer  
+↓  
+Prometheus  
+↓  
 Grafana
-Actuator
-```
-
-## 💡 Project Highlights
-
-This project demonstrates practical backend concepts relevant to FinTech:
-
-```text
-Java
-Spring Boot
-REST APIs
-Spring Data JPA
-Hibernate
-PostgreSQL
-BigDecimal
-Financial Calculations
-Database Constraints
-Idempotency
-Scheduled Processing
-Exception Handling
-DTO-based APIs
-Load Testing
-Performance Analysis
-Scalability Analysis
-```
-
-The project also demonstrates an important engineering principle:
-
-> A system can perform well on a small dataset while still having scalability limitations when the data volume and response size increase.
-
-The JMeter testing helped identify this behavior rather than only measuring
-ideal small-dataset performance.
-
-## 📊 Final Project Flow
-
-```text
-                    ┌───────────────┐
-                    │     Fund      │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │      NAV      │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │  Investor SIP │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │   Scheduler   │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │  Due SIPs     │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │  Today's NAV  │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │ Amount / NAV  │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │ BigDecimal(4) │
-                    └───────┬───────┘
-                            │
-                            ▼
-                  ┌───────────────────┐
-                  │ Idempotency Check │
-                  └─────────┬─────────┘
-                            │
-                  ┌─────────┴─────────┐
-                  │                   │
-                  ▼                   ▼
-             Already Done          New
-                  │                   │
-                  ▼                   ▼
-                Skip          Allocation Record
-                                      │
-                                      ▼
-                                  PostgreSQL
-```
-
-## 📌 Conclusion
-
-The Mutual Fund SIP & NAV Allocation Engine provides a focused backend
-implementation of a mutual-fund SIP processing workflow.
-
-The project combines:
-
-```text
-REST APIs
-+
-Relational Data Modeling
-+
-Scheduled Processing
-+
-Financial Calculations
-+
-Idempotency
-+
-Database Constraints
-+
-Performance Testing
-```
-
-It is intentionally designed as a modular backend project that can later
-evolve toward authentication, external NAV integration, payment processing,
-distributed scheduling, event-driven architecture, observability, and
-production-scale optimization.
 
 ---
 
-## 👨‍💻 Author
+# 💡 Project Highlights
+
+This project demonstrates practical backend engineering concepts relevant to FinTech systems:
+
+- Java
+- Spring Boot
+- REST APIs
+- Spring Data JPA
+- Hibernate
+- PostgreSQL
+- BigDecimal
+- Financial Calculations
+- Database Constraints
+- Idempotency
+- Scheduled Processing
+- Exception Handling
+- DTO-based APIs
+- Load Testing
+- Performance Analysis
+- Scalability Analysis
+
+A key engineering observation from the project was:
+
+> A system can perform well on a small dataset while still having scalability limitations when data volume and response size increase.
+
+The JMeter testing helped identify this behavior instead of evaluating the system only under small-dataset conditions.
+
+---
+
+# 📊 Final System Flow
+
+Fund
+↓
+NAV
+↓
+Investor SIP
+↓
+Scheduler
+↓
+Due SIPs
+↓
+Today's NAV
+↓
+Amount / NAV
+↓
+BigDecimal Calculation
+↓
+Idempotency Check
+↓
+Allocation Record
+↓
+PostgreSQL
+
+---
+
+# 👨‍💻 Author
 
 **Anurag Nikumbh**
 
@@ -1201,16 +1207,21 @@ Java Backend Developer | Spring Boot | FinTech
 
 GitHub:
 
-```text
-<your-github-profile>
-```
+https://github.com/AnuragNikumbh13
 
 ---
 
-## ⭐ Project Objective
+# ⭐ Project Objective
 
-The primary objective of this project is to demonstrate the design and
-implementation of a practical Java/Spring Boot backend system with
-real-world FinTech characteristics such as financial precision,
-scheduled processing, database integrity, idempotency, and
-performance analysis.
+The primary objective of this project is to demonstrate the design and implementation of a practical Java/Spring Boot backend system with real-world FinTech characteristics such as:
+
+- Financial Precision
+- Scheduled Processing
+- Database Integrity
+- Idempotency
+- REST API Design
+- Relational Data Modeling
+- Performance Testing
+- Scalability Analysis
+
+The project is intentionally focused on a manageable backend scope while providing a foundation that could later evolve toward authentication, external NAV integration, payment processing, distributed scheduling, event-driven architecture, observability, and production-scale optimization.
